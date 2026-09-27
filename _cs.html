@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"></head><body><div id="out">pending</div>
+<script>
+const PAGES=['index.html','about.html','experience.html','teaching.html','projects.html','contact.html'];
+const L=[];let bad=0;const fail=m=>{L.push('  FAIL '+m);bad++;};
+function load(src,w,h){return new Promise(res=>{const f=document.createElement('iframe');
+  f.style.cssText='width:'+w+'px;height:'+h+'px;border:0;position:absolute;left:-9999px';
+  f.onload=()=>res(f);f.src=src;document.body.appendChild(f);});}
+(async function(){
+  for(const p of PAGES){
+    const f=await load(p,1280,1200);
+    await new Promise(r=>setTimeout(r,600));
+    const d=f.contentDocument,w=f.contentWindow;
+    const txt=d.body.innerText;
+    const hasRole=/Chief Superintendent/.test(txt);
+    if(hasRole) L.push('=== '+p+' ===');
+    if(hasRole){
+      // every mention, with its line context
+      const walk=d.createTreeWalker(d.body,NodeFilter.SHOW_TEXT);
+      let n;
+      while(n=walk.nextNode()){
+        if(/Chief Superintendent/.test(n.nodeValue)){
+          const el=n.parentElement;
+          const r=el.getBoundingClientRect();
+          L.push('   <'+el.tagName.toLowerCase()+'> "'+n.nodeValue.replace(/\s+/g,' ').trim().slice(0,150)+'"');
+          L.push('       visible='+(r.width>0&&r.height>0)+'  w='+el.getBoundingClientRect().width.toFixed(0));
+        }
+      }
+      // any empty dash cells left in tables on this page?
+      d.querySelectorAll('table td').forEach(td=>{
+        if(/^[\u2014\u2013-]$/.test(td.textContent.trim()) && /Chief|Superintendent|ISO|Professional|AICTE/.test(td.parentElement.textContent))
+          fail(p+': empty cell still in row "'+td.parentElement.innerText.replace(/\s+/g,' ').trim().slice(0,60)+'"');
+      });
+    }
+    // overflow
+    if(d.documentElement.scrollWidth>1281) fail(p+': overflow '+d.documentElement.scrollWidth);
+    // one h1
+    if(d.querySelectorAll('h1').length!==1) fail(p+': h1 count '+d.querySelectorAll('h1').length);
+    f.remove();
+  }
+  L.unshift(bad?bad+' PROBLEM(S)':'CONSISTENT ACROSS ALL PAGES');
+  document.getElementById('out').textContent=L.join('\n');
+})();
+</script></body></html>
